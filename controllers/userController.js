@@ -1,71 +1,63 @@
 const client = require('../db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
-// Obtener todos los usuarios
-exports.getUsers = async (req, res) => {
-    try {
-        const result = await client.query('SELECT * FROM usuarios');
-        res.json(result.rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al obtener usuarios' });
-    }
-};
+// Clave secreta para JWT
+const JWT_SECRET = 'tu_clave_secreta';
 
-// Obtener un usuario por ID
-exports.getUserById = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await client.query('SELECT * FROM usuarios WHERE id = $1', [id]);
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
-        }
-        res.json(result.rows[0]);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al obtener el usuario' });
-    }
-};
-
-// Crear un nuevo usuario
-exports.createUser = async (req, res) => {
+// Registro de usuario
+exports.registerUser = async (req, res) => {
     try {
         const { nombre, email, password, rol } = req.body;
+
+        // Verificar si el email ya está registrado
+        const userExists = await client.query('SELECT * FROM usuarios WHERE email = $1', [email]);
+        if (userExists.rows.length > 0) {
+            return res.status(400).json({ error: 'El email ya está registrado' });
+        }
+
+        // Hash de la contraseña
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Asignar siempre 'cliente' como rol por defecto
+        const userRol = 'cliente';
+
+        // Insertar el nuevo usuario
         const result = await client.query(
             'INSERT INTO usuarios (nombre, email, password, rol) VALUES ($1, $2, $3, $4) RETURNING *',
-            [nombre, email, password, rol]
+            [nombre, email, hashedPassword, userRol]
         );
-        res.status(201).json(result.rows[0]);
+
+        res.status(201).json({ message: 'Usuario registrado exitosamente', user: result.rows[0] });
     } catch (error) {
-        res.status(500).json({ error: 'Error al crear el usuario' });
+        res.status(500).json({ error: 'Error al registrar el usuario' });
     }
 };
 
-// Actualizar un usuario
-exports.updateUser = async (req, res) => {
+// Login de usuario
+exports.loginUser = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { nombre, email, password, rol } = req.body;
-        const result = await client.query(
-            'UPDATE usuarios SET nombre = $1, email = $2, password = $3, rol = $4 WHERE id = $5 RETURNING *',
-            [nombre, email, password, rol, id]
-        );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
-        }
-        res.json(result.rows[0]);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al actualizar el usuario' });
-    }
-};
+        const { email, password } = req.body;
 
-// Eliminar un usuario
-exports.deleteUser = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await client.query('DELETE FROM usuarios WHERE id = $1 RETURNING *', [id]);
-        if (result.rows.length === 0) {
+        // Verificar si el usuario existe
+        const user = await client.query('SELECT * FROM usuarios WHERE email = $1', [email]);
+        if (user.rows.length === 0) {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
-        res.json({ message: 'Usuario eliminado correctamente' });
+
+        // Comparar la contraseña
+        const isPasswordValid = await bcrypt.compare(password, user.rows[0].password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Contraseña incorrecta' });
+        }
+
+        // Generar el token JWT
+        const token = jwt.sign({ id: user.rows[0].id, email: user.rows[0].email, rol: user.rows[0].rol }, JWT_SECRET, {
+            expiresIn: '1h',
+        });
+
+        res.json({ message: 'Login exitoso', token });
     } catch (error) {
-        res.status(500).json({ error: 'Error al eliminar el usuario' });
+        res.status(500).json({ error: 'Error al iniciar sesión' });
     }
 };
