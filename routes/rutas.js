@@ -15,5 +15,6 @@ router.delete('/productos/:id', authMiddleware, roleMiddleware, productControlle
 // Rutas CRUD para usuarios
 router.post('/register', userController.registerUser);
 router.post('/login', userController.loginUser);
+router.get('/user', userController.getUserData);
 
 module.exports = router;

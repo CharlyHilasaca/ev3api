@@ -62,3 +62,29 @@ exports.loginUser = async (req, res) => {
         res.status(500).json({ error: 'Error al iniciar sesión' });
     }
 };
+
+// Obtener datos del usuario con el token
+exports.getUserData = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1]; // Obtener el token del encabezado Authorization
+        if (!token) {
+            return res.status(401).json({ error: 'Token no proporcionado' });
+        }
+
+        // Verificar y decodificar el token
+        const decoded = jwt.verify(token, JWT_SECRET);
+
+        // Obtener los datos del usuario desde la base de datos
+        const user = await client.query('SELECT id, nombre, email, rol FROM usuarios WHERE id = $1', [decoded.id]);
+        if (user.rows.length === 0) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        res.json({ user: user.rows[0] });
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ error: 'Token inválido' });
+        }
+        res.status(500).json({ error: 'Error al obtener los datos del usuario' });
+    }
+};
