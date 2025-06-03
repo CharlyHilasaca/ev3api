@@ -38,7 +38,7 @@ exports.getCart = async (req, res) => {
         const usuario_id = req.user.id; // Se asume que el usuario está autenticado y su ID está disponible
 
         const cartItems = await client.query(
-            `SELECT c.id, p.nombre, p.descripcion, p.precio, p.imagen_url, c.cantidad 
+            `SELECT c.id, p.name, p.description, p.price, p.image_url, c.cantidad 
              FROM carrito c
              JOIN productos p ON c.producto_id = p.id
              WHERE c.usuario_id = $1`,
